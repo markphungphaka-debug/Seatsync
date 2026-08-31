@@ -1,0 +1,18 @@
+{
+  "name": "SeatSync - จองที่นั่งหอสมุด มมส.",
+  "short_name": "SeatSync",
+  "description": "แอปจองที่นั่งและห้องศึกษากลุ่ม สำนักวิทยบริการ มหาวิทยาลัยมหาสารคาม",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#DCE3F0",
+  "theme_color": "#2454E0",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
