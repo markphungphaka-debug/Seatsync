@@ -2,6 +2,57 @@ import { useState } from "react";
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap');`;
 
+/* ---------- Real date/time helpers (no hardcoded dates) ---------- */
+
+const thaiMonths = [
+  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+];
+const thaiWeekdaysShort = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+
+function formatThaiDateFull(date) {
+  return `${date.getDate()} ${thaiMonths[date.getMonth()]} ${date.getFullYear() + 543}`;
+}
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function getUpcomingDays(n = 7) {
+  const today = startOfToday();
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    return d;
+  });
+}
+
+function isSameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function isSlotPast(slot, date) {
+  const now = new Date();
+  if (!isSameDay(date, now)) return false;
+  const [startPart] = slot.split(" - ");
+  const [h, m] = startPart.split(":").map(Number);
+  const slotStart = new Date(date);
+  slotStart.setHours(h, m, 0, 0);
+  return slotStart.getTime() < now.getTime();
+}
+
+function getCheckinDeadline(slot) {
+  if (!slot) return "";
+  const [startPart] = slot.split(" - ");
+  const [h, m] = startPart.split(":").map(Number);
+  const total = h * 60 + m + 15;
+  const hh = Math.floor(total / 60) % 24;
+  const mm = total % 60;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")} น.`;
+}
+
 const seatData = Array.from({ length: 16 }, (_, i) => {
   const id = `A${String(i + 1).padStart(2, "0")}`;
   const booked = [5, 9, 14].includes(i);
@@ -10,8 +61,18 @@ const seatData = Array.from({ length: 16 }, (_, i) => {
 
 const timeSlots = ["08:00 - 10:00", "10:00 - 12:00", "13:00 - 15:00", "15:00 - 17:00", "17:00 - 19:00", "19:00 - 21:00"];
 
+const seedBookingDate = new Date();
+seedBookingDate.setDate(seedBookingDate.getDate() + 1);
+
 const myBookingsSeed = [
-  { id: "BK-2049", seat: "A03 ชั้น 2 โซน A", date: "20 พฤษภาคม 2567", slot: "13:00 - 15:00 น.", status: "กำลังจะถึง" },
+  {
+    id: "BK-2049",
+    seat: "A03 ชั้น 2 โซน A",
+    date: formatThaiDateFull(seedBookingDate),
+    slot: "13:00 - 15:00 น.",
+    checkinDeadline: "13:15 น.",
+    status: "กำลังจะถึง",
+  },
 ];
 
 const notifications = [
@@ -28,9 +89,11 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [seats, setSeats] = useState(seatData);
   const [selectedSeat, setSelectedSeat] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(() => startOfToday());
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [bookings, setBookings] = useState(myBookingsSeed);
   const [activeBooking, setActiveBooking] = useState(null);
+  const upcomingDates = getUpcomingDays(7);
 
   const availableCount = seats.filter((s) => !s.booked).length;
   const bookedCount = seats.filter((s) => s.booked).length;
@@ -57,6 +120,8 @@ export default function App() {
 
   const confirmSeatChoice = () => {
     if (!selectedSeat) return;
+    setSelectedDate(startOfToday());
+    setSelectedSlot(null);
     setView("time");
   };
 
@@ -64,8 +129,9 @@ export default function App() {
     const booking = {
       id: "BK-" + Math.floor(1000 + Math.random() * 9000),
       seat: `${selectedSeat.id} ชั้น 2 โซน A`,
-      date: "20 พฤษภาคม 2567",
+      date: formatThaiDateFull(selectedDate),
       slot: `${selectedSlot} น.`,
+      checkinDeadline: getCheckinDeadline(selectedSlot),
       status: "กำลังจะถึง",
     };
     setBookings((prev) => [booking, ...prev]);
@@ -123,6 +189,9 @@ export default function App() {
               {tab === "home" && view === "time" && (
                 <TimeScreen
                   seat={selectedSeat}
+                  dates={upcomingDates}
+                  selectedDate={selectedDate}
+                  onSelectDate={(d) => { setSelectedDate(d); setSelectedSlot(null); }}
                   selectedSlot={selectedSlot}
                   setSelectedSlot={setSelectedSlot}
                   onBack={() => setView("seatmap")}
@@ -289,7 +358,7 @@ function SeatMapScreen({ seats, selectedSeat, onPick, onBack, onNext }) {
         })}
       </div>
 
-      <p style={styles.caption}>เลือกโต๊ะที่ว่างเพื่อดำเนินการต่อ · จองล่วงหน้าได้สูงสุด 3 วัน</p>
+      <p style={styles.caption}>เลือกโต๊ะที่ว่างเพื่อดำเนินการต่อ · จองล่วงหน้าได้สูงสุด 7 วัน</p>
 
       <button style={{ ...styles.btnPrimaryBlock, opacity: selectedSeat ? 1 : 0.4 }} disabled={!selectedSeat} onClick={onNext}>
         ดำเนินการต่อ
@@ -298,7 +367,11 @@ function SeatMapScreen({ seats, selectedSeat, onPick, onBack, onNext }) {
   );
 }
 
-function TimeScreen({ seat, selectedSlot, setSelectedSlot, onBack, onNext }) {
+function TimeScreen({ seat, dates, selectedDate, onSelectDate, selectedSlot, setSelectedSlot, onBack, onNext }) {
+  const today = new Date();
+  const slotsForDate = timeSlots.map((s) => ({ slot: s, past: isSlotPast(s, selectedDate) }));
+  const allPast = slotsForDate.every((s) => s.past);
+
   return (
     <div style={styles.screen}>
       <ScreenHeader title="เลือกวันและเวลา" onBack={onBack} />
@@ -312,21 +385,48 @@ function TimeScreen({ seat, selectedSlot, setSelectedSlot, onBack, onNext }) {
       </div>
 
       <p style={styles.fieldLabel}>เลือกวันที่</p>
-      <div style={styles.dateBox}>📅 20 พฤษภาคม 2567</div>
+      <div style={styles.dateRow}>
+        {dates.map((d) => {
+          const active = isSameDay(d, selectedDate);
+          const isToday = isSameDay(d, today);
+          return (
+            <button
+              key={d.toISOString()}
+              onClick={() => onSelectDate(d)}
+              style={{ ...styles.dateChip, ...(active ? styles.dateChipActive : {}) }}
+            >
+              <span style={{ ...styles.dateChipDay, color: active ? "rgba(255,255,255,.8)" : muted }}>
+                {isToday ? "วันนี้" : thaiWeekdaysShort[d.getDay()]}
+              </span>
+              <span style={styles.dateChipNum}>{d.getDate()}</span>
+            </button>
+          );
+        })}
+      </div>
+      <p style={styles.dateFull}>📅 {formatThaiDateFull(selectedDate)}</p>
 
       <p style={{ ...styles.fieldLabel, marginTop: 18 }}>เลือกช่วงเวลา</p>
       <div style={styles.slotGrid}>
-        {timeSlots.map((s) => (
+        {slotsForDate.map(({ slot: s, past }) => (
           <button
             key={s}
+            disabled={past}
             onClick={() => setSelectedSlot(s)}
-            style={{ ...styles.slot, ...(selectedSlot === s ? styles.slotActive : {}) }}
+            style={{
+              ...styles.slot,
+              ...(selectedSlot === s ? styles.slotActive : {}),
+              ...(past ? styles.slotPast : {}),
+            }}
           >
             {s}
           </button>
         ))}
       </div>
-      <p style={styles.caption}>⏰ กรุณาเช็กอินภายใน 15 นาทีหลังเวลาเริ่มต้น</p>
+      {allPast ? (
+        <p style={{ ...styles.caption, color: "#D64545" }}>⚠️ ไม่มีช่วงเวลาว่างสำหรับวันนี้แล้ว กรุณาเลือกวันอื่น</p>
+      ) : (
+        <p style={styles.caption}>⏰ กรุณาเช็กอินภายใน 15 นาทีหลังเวลาเริ่มต้น · ช่วงเวลาที่ผ่านไปแล้วจะถูกปิดอัตโนมัติ</p>
+      )}
 
       <button style={{ ...styles.btnPrimaryBlock, opacity: selectedSlot ? 1 : 0.4 }} disabled={!selectedSlot} onClick={onNext}>
         ยืนยันการจอง
@@ -345,7 +445,7 @@ function ConfirmScreen({ booking, onShowQr, onMyBookings }) {
       <div style={styles.confirmCard}>
         <div style={styles.confirmRow}><span>วันที่</span><span>{booking?.date}</span></div>
         <div style={styles.confirmRow}><span>เวลา</span><span>{booking?.slot}</span></div>
-        <div style={styles.confirmRow}><span>กรุณาเช็กอินก่อน</span><span style={{ color: "#D64545", fontWeight: 600 }}>13:15 น.</span></div>
+        <div style={styles.confirmRow}><span>กรุณาเช็กอินก่อน</span><span style={{ color: "#D64545", fontWeight: 600 }}>{booking?.checkinDeadline}</span></div>
       </div>
 
       <button style={styles.btnPrimaryBlock} onClick={onShowQr}>แสดง QR Code</button>
@@ -359,7 +459,7 @@ function CheckinScreen({ booking, onBack }) {
     <div style={styles.screen}>
       <ScreenHeader title="เช็กอิน" onBack={onBack} />
 
-      <div style={styles.checkinBanner}>กรุณาเช็กอินภายใน 13:15 น.</div>
+      <div style={styles.checkinBanner}>กรุณาเช็กอินภายใน {booking?.checkinDeadline}</div>
 
       <p style={{ ...styles.h2, textAlign: "center", marginTop: 22 }}>QR Code เช็กอิน</p>
       <div style={styles.qrBox}>
@@ -581,9 +681,21 @@ const styles = {
   fieldLabel: { fontSize: 13, fontWeight: 600, color: ink, margin: "0 0 8px" },
   dateBox: { background: "#fff", border: `1px solid ${line}`, borderRadius: 10, padding: "13px 14px", fontSize: 14, color: ink },
 
+  dateRow: { display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, marginBottom: 10 },
+  dateChip: {
+    minWidth: 52, display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+    border: `1px solid ${line}`, background: "#fff", borderRadius: 12, padding: "10px 6px",
+    cursor: "pointer", fontFamily: "'Noto Sans Thai', sans-serif", flexShrink: 0,
+  },
+  dateChipActive: { background: primary, borderColor: primary, color: "#fff" },
+  dateChipDay: { fontSize: 11.5 },
+  dateChipNum: { fontSize: 16, fontWeight: 700 },
+  dateFull: { fontSize: 13, color: muted, margin: "0 0 4px" },
+
   slotGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 },
   slot: { border: `1px solid ${line}`, background: "#fff", borderRadius: 10, padding: "12px 8px", fontSize: 13.5, color: ink, cursor: "pointer" },
   slotActive: { background: primary, borderColor: primary, color: "#fff" },
+  slotPast: { background: "#F1F2F6", color: "#B3BACB", cursor: "not-allowed", textDecoration: "line-through" },
 
   successCircle: {
     width: 72, height: 72, borderRadius: "50%", background: "#22B573", color: "#fff",
