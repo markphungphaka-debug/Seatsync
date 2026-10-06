@@ -75,6 +75,16 @@ const myBookingsSeed = [
   },
 ];
 
+function getFloorOverview(seats) {
+  const total = seats.length;
+  const free = seats.filter((s) => !s.booked).length;
+  return [
+    { id: "f2a", label: "ชั้น 2 โซน A", free, total, demo: false },
+    { id: "f1", label: "ชั้น 1 โซนทั่วไป", free: 9, total: 20, demo: true },
+    { id: "f3", label: "ชั้น 3 โซนเงียบ", free: 3, total: 12, demo: true },
+  ];
+}
+
 const notifications = [
   { title: "ใกล้ถึงเวลาจอง", body: "อย่าลืมเช็กอินที่โต๊ะ A03 ภายใน 13:15 น.", time: "5 นาทีที่แล้ว" },
   { title: "จองสำเร็จ", body: "คุณจองโต๊ะ A03 ชั้น 2 โซน A เรียบร้อยแล้ว", time: "เมื่อวาน" },
@@ -125,6 +135,19 @@ export default function App() {
     setView("time");
   };
 
+  const openScanTable = () => setView("scanTable");
+  const openScanOverview = () => setView("scanOverview");
+
+  const handleTableScanned = () => {
+    const free = seats.filter((s) => !s.booked);
+    if (free.length === 0) return;
+    const seat = free[Math.floor(Math.random() * free.length)];
+    setSelectedSeat(seat);
+    setSelectedDate(startOfToday());
+    setSelectedSlot(null);
+    setView("time");
+  };
+
   const confirmBooking = () => {
     const booking = {
       id: "BK-" + Math.floor(1000 + Math.random() * 9000),
@@ -169,10 +192,24 @@ export default function App() {
                   bookedCount={bookedCount}
                   bookings={bookings}
                   onSeatmap={() => setView("seatmap")}
+                  onScanTable={openScanTable}
+                  onScanOverview={openScanOverview}
                   onOpenBooking={(b) => {
                     setActiveBooking(b);
                     setView("checkin");
                   }}
+                />
+              )}
+
+              {tab === "home" && view === "scanTable" && (
+                <ScanTableScreen onBack={() => setView("home")} onScanned={handleTableScanned} />
+              )}
+
+              {tab === "home" && view === "scanOverview" && (
+                <ScanOverviewScreen
+                  floors={getFloorOverview(seats)}
+                  onBack={() => setView("home")}
+                  onGoSeatmap={() => setView("seatmap")}
                 />
               )}
 
@@ -284,7 +321,7 @@ function LoginScreen({ studentId, setStudentId, password, setPassword, onLogin }
   );
 }
 
-function HomeScreen({ user, availableCount, bookedCount, bookings, onSeatmap, onOpenBooking }) {
+function HomeScreen({ user, availableCount, bookedCount, bookings, onSeatmap, onScanTable, onScanOverview, onOpenBooking }) {
   return (
     <div style={styles.screen}>
       <div style={styles.topRow}>
@@ -308,6 +345,20 @@ function HomeScreen({ user, availableCount, bookedCount, bookings, onSeatmap, on
       </div>
 
       <button style={styles.btnPrimaryBlock} onClick={onSeatmap}>ดูแผนผังโต๊ะ</button>
+
+      <p style={{ ...styles.h2, marginTop: 22 }}>สำหรับคนที่เดินมาถึงแล้ว (Walk-in)</p>
+      <div style={styles.scanRow}>
+        <button style={styles.scanCard} onClick={onScanTable}>
+          <span style={styles.scanCardIcon}>📷</span>
+          <span style={styles.scanCardTitle}>สแกน QR ที่โต๊ะ</span>
+          <span style={styles.scanCardSub}>จองโต๊ะที่เห็นว่างได้ทันที</span>
+        </button>
+        <button style={styles.scanCard} onClick={onScanOverview}>
+          <span style={styles.scanCardIcon}>🗺️</span>
+          <span style={styles.scanCardTitle}>สแกน QR หน้าทางเข้า</span>
+          <span style={styles.scanCardSub}>ดูภาพรวมที่ว่างทุกชั้น</span>
+        </button>
+      </div>
 
       <p style={{ ...styles.h2, marginTop: 26 }}>การจองของฉัน</p>
       {bookings.length === 0 ? (
@@ -363,6 +414,69 @@ function SeatMapScreen({ seats, selectedSeat, onPick, onBack, onNext }) {
       <button style={{ ...styles.btnPrimaryBlock, opacity: selectedSeat ? 1 : 0.4 }} disabled={!selectedSeat} onClick={onNext}>
         ดำเนินการต่อ
       </button>
+    </div>
+  );
+}
+
+function ScanTableScreen({ onBack, onScanned }) {
+  const [scanning, setScanning] = useState(false);
+
+  const handleScan = () => {
+    setScanning(true);
+    setTimeout(() => {
+      setScanning(false);
+      onScanned();
+    }, 900);
+  };
+
+  return (
+    <div style={styles.screen}>
+      <ScreenHeader title="สแกน QR ที่โต๊ะ" onBack={onBack} />
+      <p style={styles.caption}>สำหรับโต๊ะที่เห็นว่างตรงหน้า สแกน QR ที่ติดบนโต๊ะเพื่อจองทันที ไม่ต้องเปิดผังหาเอง</p>
+
+      <div style={styles.viewfinderBox}>
+        <span style={{ ...styles.viewfinderCorner, top: 10, left: 10, borderRight: "none", borderBottom: "none" }} />
+        <span style={{ ...styles.viewfinderCorner, top: 10, right: 10, borderLeft: "none", borderBottom: "none" }} />
+        <span style={{ ...styles.viewfinderCorner, bottom: 10, left: 10, borderRight: "none", borderTop: "none" }} />
+        <span style={{ ...styles.viewfinderCorner, bottom: 10, right: 10, borderLeft: "none", borderTop: "none" }} />
+        <span style={styles.viewfinderIcon}>{scanning ? "🔎" : "📷"}</span>
+      </div>
+
+      <p style={styles.scanStatusText}>{scanning ? "กำลังอ่าน QR Code..." : "เล็งกล้องไปที่ QR บนโต๊ะ"}</p>
+
+      <button style={styles.btnPrimaryBlock} onClick={handleScan} disabled={scanning}>
+        {scanning ? "กำลังสแกน..." : "จำลองสแกนสำเร็จ"}
+      </button>
+      <p style={styles.demoNote}>* ต้นแบบนี้จำลองการสแกนด้วยปุ่ม แทนการเปิดกล้องจริง</p>
+    </div>
+  );
+}
+
+function ScanOverviewScreen({ floors, onBack, onGoSeatmap }) {
+  return (
+    <div style={styles.screen}>
+      <ScreenHeader title="ภาพรวมที่ว่างทุกชั้น" onBack={onBack} />
+      <p style={styles.caption}>สแกนจากป้าย QR หน้าทางเข้า เพื่อดูก่อนว่าชั้นไหนมีที่ว่าง ไม่ต้องเดินขึ้นไปสำรวจเอง</p>
+
+      {floors.map((f) => {
+        const pct = Math.round((f.free / f.total) * 100);
+        return (
+          <div key={f.id} style={styles.floorCard}>
+            <div style={styles.floorCardTop}>
+              <p style={styles.floorLabel}>{f.label}{f.demo && <span style={styles.demoBadge}>ตัวอย่าง</span>}</p>
+              <p style={styles.floorCount}>{f.free}/{f.total} ว่าง</p>
+            </div>
+            <div style={styles.floorBarTrack}>
+              <div style={{ ...styles.floorBarFill, width: `${pct}%` }} />
+            </div>
+            {f.demo ? (
+              <p style={styles.floorComingSoon}>เร็วๆ นี้</p>
+            ) : (
+              <button style={styles.floorGoBtn} onClick={onGoSeatmap}>ดูผังที่นั่ง →</button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -463,8 +577,9 @@ function CheckinScreen({ booking, onBack }) {
 
       <p style={{ ...styles.h2, textAlign: "center", marginTop: 22 }}>QR Code เช็กอิน</p>
       <div style={styles.qrBox}>
-        <QrPlaceholder />
+        <RealQrCode value={`SEATSYNC-CHECKIN:${booking?.id}`} />
       </div>
+      <p style={styles.qrCodeText}>รหัสเช็กอิน: {booking?.id}</p>
 
       <p style={styles.confirmSeat}>{booking?.seat}</p>
       <p style={styles.bookingMeta}>{booking?.date} · {booking?.slot}</p>
@@ -536,15 +651,9 @@ function ScreenHeader({ title, onBack }) {
   );
 }
 
-function QrPlaceholder() {
-  const cells = Array.from({ length: 49 }, (_, i) => (i * 37) % 5 === 0 || (i * 13) % 7 === 0);
-  return (
-    <div style={styles.qrGrid}>
-      {cells.map((on, i) => (
-        <div key={i} style={{ background: on ? "#1E2433" : "transparent" }} />
-      ))}
-    </div>
-  );
+function RealQrCode({ value }) {
+  const src = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=0&data=${encodeURIComponent(value)}`;
+  return <img src={src} alt="QR Code เช็กอิน" style={styles.qrImg} />;
 }
 
 function BottomNav({ tab, setTab }) {
@@ -645,6 +754,35 @@ const styles = {
   statNum: { fontSize: 26, fontWeight: 700, margin: 0 },
   statLabel: { fontSize: 12.5, color: muted, margin: "2px 0 0" },
 
+  scanRow: { display: "flex", gap: 10, marginBottom: 6 },
+  scanCard: {
+    flex: 1, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4,
+    background: "#fff", border: `1px solid ${line}`, borderRadius: 14, padding: "14px 14px",
+    cursor: "pointer", textAlign: "left", fontFamily: "'Noto Sans Thai', sans-serif",
+  },
+  scanCardIcon: { fontSize: 20 },
+  scanCardTitle: { fontSize: 13.5, fontWeight: 700, color: ink },
+  scanCardSub: { fontSize: 11.5, color: muted, lineHeight: 1.4 },
+
+  viewfinderBox: {
+    position: "relative", width: "100%", aspectRatio: "1.1", maxWidth: 240, margin: "18px auto 14px",
+    background: "#1E2433", borderRadius: 20, display: "flex", alignItems: "center", justifyContent: "center",
+  },
+  viewfinderCorner: { position: "absolute", width: 28, height: 28, border: "3px solid #fff", borderRadius: 4 },
+  viewfinderIcon: { fontSize: 44 },
+  scanStatusText: { textAlign: "center", fontSize: 13.5, color: muted, marginBottom: 16 },
+  demoNote: { textAlign: "center", fontSize: 11.5, color: "#B3BACB", marginTop: 10 },
+
+  floorCard: { background: "#fff", border: `1px solid ${line}`, borderRadius: 14, padding: "14px 16px", marginBottom: 12 },
+  floorCardTop: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  floorLabel: { margin: 0, fontSize: 14, fontWeight: 700, color: ink, display: "flex", alignItems: "center", gap: 6 },
+  floorCount: { margin: 0, fontSize: 13, color: muted },
+  demoBadge: { fontSize: 10, fontWeight: 600, color: "#9A6B00", background: "#FFF3DB", padding: "2px 7px", borderRadius: 20 },
+  floorBarTrack: { height: 8, background: "#EEF1F7", borderRadius: 20, overflow: "hidden", marginBottom: 10 },
+  floorBarFill: { height: "100%", background: primary, borderRadius: 20 },
+  floorGoBtn: { border: "none", background: "transparent", color: primary, fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0 },
+  floorComingSoon: { fontSize: 12, color: "#B3BACB", margin: 0 },
+
   emptyText: { fontSize: 13.5, color: muted },
   bookingCard: {
     width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
@@ -707,8 +845,9 @@ const styles = {
   confirmRow: { display: "flex", justifyContent: "space-between", fontSize: 13.5, color: ink, padding: "6px 0" },
 
   checkinBanner: { background: "#E7F3EA", color: "#1F8A4C", textAlign: "center", padding: "12px 0", borderRadius: 12, fontWeight: 600, fontSize: 14 },
-  qrBox: { background: "#fff", border: `1px solid ${line}`, borderRadius: 16, padding: 24, margin: "14px auto 18px", width: 180 },
-  qrGrid: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3, width: "100%", aspectRatio: "1" },
+  qrBox: { background: "#fff", border: `1px solid ${line}`, borderRadius: 16, padding: 20, margin: "14px auto 10px", width: 200, display: "flex", justifyContent: "center" },
+  qrImg: { width: "100%", height: "auto", display: "block" },
+  qrCodeText: { fontSize: 12, color: muted, letterSpacing: 0.3, marginBottom: 16 },
 
   bookingListCard: { display: "flex", alignItems: "center", gap: 10, background: "#fff", border: `1px solid ${line}`, borderRadius: 14, padding: "14px 16px", marginBottom: 10 },
   cancelLink: { border: "none", background: "transparent", color: "#D64545", fontSize: 13, fontWeight: 600, cursor: "pointer" },
