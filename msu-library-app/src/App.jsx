@@ -53,11 +53,48 @@ function getCheckinDeadline(slot) {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")} น.`;
 }
 
-const seatData = Array.from({ length: 16 }, (_, i) => {
-  const id = `A${String(i + 1).padStart(2, "0")}`;
-  const booked = [5, 9, 14].includes(i);
-  return { id, booked };
-});
+/* ---------- Real zones, taken from the ชั้น 2 / ชั้น 3 directory signs ---------- */
+/* Only actual individual-seating zones are bookable here; service counters, */
+/* offices and book-shelf sections from the signs are not seat-booking areas. */
+
+const floorZones = [
+  // Counted from the marked dots in the floor 2 photo: ~15 seats left + ~15 right of the center aisle.
+  { id: "f2-reading", floor: "ชั้น 2", zone: "พื้นที่นั่งอ่าน", zoneEn: "Reading Zone", layout: "split", leftCount: 15, rightCount: 15, bookedIdx: [2, 9, 20, 27] },
+  // Counted from the dot cluster near label 6 on the floor 3 photo (the arrow points to this cluster).
+  { id: "f3-pavilion", floor: "ชั้น 3", zone: "Pavilion Zone", zoneEn: "พื้นที่นั่งอ่าน", prefix: "P", count: 36, bookedIdx: [4, 15, 22, 30] },
+  // Counted from the dots scattered near zone 2 / zone 3 and along the pyramid edges on the floor 3 photo.
+  { id: "f3-nook", floor: "ชั้น 3", zone: "มุมอ่านริมชั้นหนังสือ", zoneEn: "Reading Nook", prefix: "N", count: 28, bookedIdx: [3, 10, 19, 24] },
+];
+
+function zoneLabel(zoneDef) {
+  return `${zoneDef.floor} · ${zoneDef.zone}`;
+}
+
+function buildZoneSeats(zoneDef) {
+  if (zoneDef.layout === "split") {
+    const left = Array.from({ length: zoneDef.leftCount }, (_, i) => ({
+      id: `A${String(i + 1).padStart(2, "0")}`,
+      side: "left",
+      booked: zoneDef.bookedIdx.includes(i),
+    }));
+    const right = Array.from({ length: zoneDef.rightCount }, (_, i) => ({
+      id: `B${String(i + 1).padStart(2, "0")}`,
+      side: "right",
+      booked: zoneDef.bookedIdx.includes(zoneDef.leftCount + i),
+    }));
+    return [...left, ...right];
+  }
+  return Array.from({ length: zoneDef.count }, (_, i) => ({
+    id: `${zoneDef.prefix}${String(i + 1).padStart(2, "0")}`,
+    booked: zoneDef.bookedIdx.includes(i),
+  }));
+}
+
+function buildInitialSeatsByZone() {
+  const map = {};
+  floorZones.forEach((z) => { map[z.id] = buildZoneSeats(z); });
+  return map;
+}
 
 const timeSlots = ["08:00 - 10:00", "10:00 - 12:00", "13:00 - 15:00", "15:00 - 17:00", "17:00 - 19:00", "19:00 - 21:00"];
 
@@ -67,7 +104,7 @@ seedBookingDate.setDate(seedBookingDate.getDate() + 1);
 const myBookingsSeed = [
   {
     id: "BK-2049",
-    seat: "A03 ชั้น 2 โซน A",
+    seat: `A03 ${zoneLabel(floorZones[0])}`,
     date: formatThaiDateFull(seedBookingDate),
     slot: "13:00 - 15:00 น.",
     checkinDeadline: "13:15 น.",
@@ -75,20 +112,18 @@ const myBookingsSeed = [
   },
 ];
 
-function getFloorOverview(seats) {
-  const total = seats.length;
-  const free = seats.filter((s) => !s.booked).length;
-  return [
-    { id: "f2a", label: "ชั้น 2 โซน A", free, total, demo: false },
-    { id: "f1", label: "ชั้น 1 โซนทั่วไป", free: 9, total: 20, demo: true },
-    { id: "f3", label: "ชั้น 3 โซนเงียบ", free: 3, total: 12, demo: true },
-  ];
+function getFloorOverview(seatsByZone) {
+  return floorZones.map((z) => {
+    const seats = seatsByZone[z.id];
+    const free = seats.filter((s) => !s.booked).length;
+    return { id: z.id, label: zoneLabel(z), free, total: seats.length };
+  });
 }
 
 const notifications = [
   { title: "ใกล้ถึงเวลาจอง", body: "อย่าลืมเช็กอินที่โต๊ะ A03 ภายใน 13:15 น.", time: "5 นาทีที่แล้ว" },
-  { title: "จองสำเร็จ", body: "คุณจองโต๊ะ A03 ชั้น 2 โซน A เรียบร้อยแล้ว", time: "เมื่อวาน" },
-  { title: "ยกเลิกอัตโนมัติ", body: "การจองโต๊ะ B11 ถูกยกเลิกเนื่องจากไม่เช็กอินตามเวลา", time: "3 วันที่แล้ว" },
+  { title: "จองสำเร็จ", body: `คุณจองโต๊ะ A03 ${zoneLabel(floorZones[0])} เรียบร้อยแล้ว`, time: "เมื่อวาน" },
+  { title: "ยกเลิกอัตโนมัติ", body: "การจองโต๊ะ P08 ถูกยกเลิกเนื่องจากไม่เช็กอินตามเวลา", time: "3 วันที่แล้ว" },
 ];
 
 export default function App() {
@@ -97,7 +132,8 @@ export default function App() {
   const [studentId, setStudentId] = useState("");
   const [password, setPassword] = useState("");
   const [user, setUser] = useState(null);
-  const [seats, setSeats] = useState(seatData);
+  const [seatsByZone, setSeatsByZone] = useState(buildInitialSeatsByZone);
+  const [activeZoneId, setActiveZoneId] = useState(floorZones[0].id);
   const [selectedSeat, setSelectedSeat] = useState(null);
   const [selectedDate, setSelectedDate] = useState(() => startOfToday());
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -105,8 +141,17 @@ export default function App() {
   const [activeBooking, setActiveBooking] = useState(null);
   const upcomingDates = getUpcomingDays(7);
 
-  const availableCount = seats.filter((s) => !s.booked).length;
-  const bookedCount = seats.filter((s) => s.booked).length;
+  const activeZone = floorZones.find((z) => z.id === activeZoneId);
+  const seats = seatsByZone[activeZoneId];
+
+  const allSeatsFlat = Object.values(seatsByZone).flat();
+  const availableCount = allSeatsFlat.filter((s) => !s.booked).length;
+  const bookedCount = allSeatsFlat.filter((s) => s.booked).length;
+
+  const changeZone = (zoneId) => {
+    setActiveZoneId(zoneId);
+    setSelectedSeat(null);
+  };
 
   const login = () => {
     setUser({ name: studentId ? "เมย์" : "นิสิต", studentId: studentId || "65010123456" });
@@ -139,10 +184,16 @@ export default function App() {
   const openScanOverview = () => setView("scanOverview");
 
   const handleTableScanned = () => {
-    const free = seats.filter((s) => !s.booked);
-    if (free.length === 0) return;
-    const seat = free[Math.floor(Math.random() * free.length)];
-    setSelectedSeat(seat);
+    const candidates = [];
+    floorZones.forEach((z) => {
+      seatsByZone[z.id].forEach((s) => {
+        if (!s.booked) candidates.push({ zoneId: z.id, seat: s });
+      });
+    });
+    if (candidates.length === 0) return;
+    const picked = candidates[Math.floor(Math.random() * candidates.length)];
+    setActiveZoneId(picked.zoneId);
+    setSelectedSeat(picked.seat);
     setSelectedDate(startOfToday());
     setSelectedSlot(null);
     setView("time");
@@ -151,7 +202,7 @@ export default function App() {
   const confirmBooking = () => {
     const booking = {
       id: "BK-" + Math.floor(1000 + Math.random() * 9000),
-      seat: `${selectedSeat.id} ชั้น 2 โซน A`,
+      seat: `${selectedSeat.id} ${zoneLabel(activeZone)}`,
       date: formatThaiDateFull(selectedDate),
       slot: `${selectedSlot} น.`,
       checkinDeadline: getCheckinDeadline(selectedSlot),
@@ -159,7 +210,10 @@ export default function App() {
     };
     setBookings((prev) => [booking, ...prev]);
     setActiveBooking(booking);
-    setSeats((prev) => prev.map((s) => (s.id === selectedSeat.id ? { ...s, booked: true } : s)));
+    setSeatsByZone((prev) => ({
+      ...prev,
+      [activeZoneId]: prev[activeZoneId].map((s) => (s.id === selectedSeat.id ? { ...s, booked: true } : s)),
+    }));
     setView("confirm");
   };
 
@@ -207,15 +261,18 @@ export default function App() {
 
               {tab === "home" && view === "scanOverview" && (
                 <ScanOverviewScreen
-                  floors={getFloorOverview(seats)}
+                  floors={getFloorOverview(seatsByZone)}
                   onBack={() => setView("home")}
-                  onGoSeatmap={() => setView("seatmap")}
+                  onGoSeatmap={(zoneId) => { changeZone(zoneId); setView("seatmap"); }}
                 />
               )}
 
               {tab === "home" && view === "seatmap" && (
                 <SeatMapScreen
                   seats={seats}
+                  zones={floorZones}
+                  activeZoneId={activeZoneId}
+                  onChangeZone={changeZone}
                   selectedSeat={selectedSeat}
                   onPick={pickSeat}
                   onBack={() => setView("home")}
@@ -226,6 +283,7 @@ export default function App() {
               {tab === "home" && view === "time" && (
                 <TimeScreen
                   seat={selectedSeat}
+                  zoneLabelText={zoneLabel(activeZone)}
                   dates={upcomingDates}
                   selectedDate={selectedDate}
                   onSelectDate={(d) => { setSelectedDate(d); setSelectedSlot(null); }}
@@ -378,10 +436,22 @@ function HomeScreen({ user, availableCount, bookedCount, bookings, onSeatmap, on
   );
 }
 
-function SeatMapScreen({ seats, selectedSeat, onPick, onBack, onNext }) {
+function SeatMapScreen({ seats, zones, activeZoneId, onChangeZone, selectedSeat, onPick, onBack, onNext }) {
   return (
     <div style={styles.screen}>
-      <ScreenHeader title="แผนผังชั้น 2 โซน A" onBack={onBack} />
+      <ScreenHeader title="แผนผังที่นั่ง" onBack={onBack} />
+
+      <div style={styles.zoneRow}>
+        {zones.map((z) => (
+          <button
+            key={z.id}
+            onClick={() => onChangeZone(z.id)}
+            style={{ ...styles.zoneChip, ...(z.id === activeZoneId ? styles.zoneChipActive : {}) }}
+          >
+            {z.floor} · {z.zone}
+          </button>
+        ))}
+      </div>
 
       <div style={styles.legendRow}>
         <span style={styles.legendItem}><i style={{ ...styles.legendDot, background: "#fff", border: "1.5px solid #C9D2E3" }} />ว่าง</span>
@@ -389,25 +459,30 @@ function SeatMapScreen({ seats, selectedSeat, onPick, onBack, onNext }) {
         <span style={styles.legendItem}><i style={{ ...styles.legendDot, background: "#F3B4B4" }} />ถูกจอง</span>
       </div>
 
-      <div style={styles.seatGrid}>
-        {seats.map((s) => {
-          const isSel = selectedSeat?.id === s.id;
-          return (
-            <button
-              key={s.id}
-              disabled={s.booked}
-              onClick={() => onPick(s)}
-              style={{
-                ...styles.seat,
-                ...(s.booked ? styles.seatBooked : {}),
-                ...(isSel ? styles.seatSelected : {}),
-              }}
-            >
-              {s.id}
-            </button>
-          );
-        })}
-      </div>
+      {seats[0]?.side ? (
+        <>
+          <div style={styles.seatSplitRow}>
+            <div style={styles.seatSplitCol}>
+              {seats.filter((s) => s.side === "left").map((s) => (
+                <SeatButton key={s.id} seat={s} selected={selectedSeat?.id === s.id} onPick={onPick} />
+              ))}
+            </div>
+            <div style={styles.seatAisle} />
+            <div style={styles.seatSplitCol}>
+              {seats.filter((s) => s.side === "right").map((s) => (
+                <SeatButton key={s.id} seat={s} selected={selectedSeat?.id === s.id} onPick={onPick} />
+              ))}
+            </div>
+          </div>
+          <p style={styles.aisleCaption}>↑ ทางเดินตรงกลาง (ตามผังจริงหน้าห้องสมุด)</p>
+        </>
+      ) : (
+        <div style={styles.seatGrid}>
+          {seats.map((s) => (
+            <SeatButton key={s.id} seat={s} selected={selectedSeat?.id === s.id} onPick={onPick} />
+          ))}
+        </div>
+      )}
 
       <p style={styles.caption}>เลือกโต๊ะที่ว่างเพื่อดำเนินการต่อ · จองล่วงหน้าได้สูงสุด 7 วัน</p>
 
@@ -415,6 +490,22 @@ function SeatMapScreen({ seats, selectedSeat, onPick, onBack, onNext }) {
         ดำเนินการต่อ
       </button>
     </div>
+  );
+}
+
+function SeatButton({ seat, selected, onPick }) {
+  return (
+    <button
+      disabled={seat.booked}
+      onClick={() => onPick(seat)}
+      style={{
+        ...styles.seat,
+        ...(seat.booked ? styles.seatBooked : {}),
+        ...(selected ? styles.seatSelected : {}),
+      }}
+    >
+      {seat.id}
+    </button>
   );
 }
 
@@ -463,17 +554,13 @@ function ScanOverviewScreen({ floors, onBack, onGoSeatmap }) {
         return (
           <div key={f.id} style={styles.floorCard}>
             <div style={styles.floorCardTop}>
-              <p style={styles.floorLabel}>{f.label}{f.demo && <span style={styles.demoBadge}>ตัวอย่าง</span>}</p>
+              <p style={styles.floorLabel}>{f.label}</p>
               <p style={styles.floorCount}>{f.free}/{f.total} ว่าง</p>
             </div>
             <div style={styles.floorBarTrack}>
               <div style={{ ...styles.floorBarFill, width: `${pct}%` }} />
             </div>
-            {f.demo ? (
-              <p style={styles.floorComingSoon}>เร็วๆ นี้</p>
-            ) : (
-              <button style={styles.floorGoBtn} onClick={onGoSeatmap}>ดูผังที่นั่ง →</button>
-            )}
+            <button style={styles.floorGoBtn} onClick={() => onGoSeatmap(f.id)}>ดูผังที่นั่ง →</button>
           </div>
         );
       })}
@@ -481,7 +568,7 @@ function ScanOverviewScreen({ floors, onBack, onGoSeatmap }) {
   );
 }
 
-function TimeScreen({ seat, dates, selectedDate, onSelectDate, selectedSlot, setSelectedSlot, onBack, onNext }) {
+function TimeScreen({ seat, zoneLabelText, dates, selectedDate, onSelectDate, selectedSlot, setSelectedSlot, onBack, onNext }) {
   const today = new Date();
   const slotsForDate = timeSlots.map((s) => ({ slot: s, past: isSlotPast(s, selectedDate) }));
   const allPast = slotsForDate.every((s) => s.past);
@@ -494,7 +581,7 @@ function TimeScreen({ seat, dates, selectedDate, onSelectDate, selectedSlot, set
         <div style={styles.seatIconBox}>🪑</div>
         <div>
           <p style={styles.seatInfoTitle}>โต๊ะ {seat?.id}</p>
-          <p style={styles.seatInfoSub}>ชั้น 2 โซน A</p>
+          <p style={styles.seatInfoSub}>{zoneLabelText}</p>
         </div>
       </div>
 
@@ -777,11 +864,9 @@ const styles = {
   floorCardTop: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   floorLabel: { margin: 0, fontSize: 14, fontWeight: 700, color: ink, display: "flex", alignItems: "center", gap: 6 },
   floorCount: { margin: 0, fontSize: 13, color: muted },
-  demoBadge: { fontSize: 10, fontWeight: 600, color: "#9A6B00", background: "#FFF3DB", padding: "2px 7px", borderRadius: 20 },
   floorBarTrack: { height: 8, background: "#EEF1F7", borderRadius: 20, overflow: "hidden", marginBottom: 10 },
   floorBarFill: { height: "100%", background: primary, borderRadius: 20 },
   floorGoBtn: { border: "none", background: "transparent", color: primary, fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0 },
-  floorComingSoon: { fontSize: 12, color: "#B3BACB", margin: 0 },
 
   emptyText: { fontSize: 13.5, color: muted },
   bookingCard: {
@@ -797,11 +882,23 @@ const styles = {
   backBtn: { border: "none", background: "#fff", width: 34, height: 34, borderRadius: 10, fontSize: 15, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
   headerTitle: { fontSize: 15.5, fontWeight: 700, color: ink, margin: 0 },
 
+  zoneRow: { display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, marginBottom: 16 },
+  zoneChip: {
+    flexShrink: 0, border: `1px solid ${line}`, background: "#fff", color: ink,
+    borderRadius: 20, padding: "8px 14px", fontSize: 12.5, fontWeight: 600,
+    cursor: "pointer", fontFamily: "'Noto Sans Thai', sans-serif", whiteSpace: "nowrap",
+  },
+  zoneChipActive: { background: primary, borderColor: primary, color: "#fff" },
+
   legendRow: { display: "flex", gap: 16, marginBottom: 16, fontSize: 12.5, color: muted },
   legendItem: { display: "inline-flex", alignItems: "center", gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 3, display: "inline-block" },
 
   seatGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 },
+  seatSplitRow: { display: "flex", gap: 14, marginBottom: 6 },
+  seatSplitCol: { flex: 1, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 },
+  seatAisle: { width: 2, background: line, borderRadius: 2, flexShrink: 0 },
+  aisleCaption: { fontSize: 11.5, color: "#B3BACB", textAlign: "center", marginBottom: 14 },
   seat: {
     aspectRatio: "1", border: `1.5px solid ${line}`, background: "#fff", borderRadius: 10,
     fontSize: 12.5, fontWeight: 600, color: ink, cursor: "pointer",
