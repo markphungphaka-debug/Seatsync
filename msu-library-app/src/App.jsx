@@ -57,13 +57,37 @@ function getCheckinDeadline(slot) {
 /* Only actual individual-seating zones are bookable here; service counters, */
 /* offices and book-shelf sections from the signs are not seat-booking areas. */
 
+// Seat counts were traced from the marked dots in the two floor-plan photos.
+// Each zone also carries the real room outline (diamond for floor 2, triangle for
+// floor 3) so the seat grid renders inside the actual room shape, neatly arranged
+// in rows/columns with a visible seat number on every seat.
+const MAP_VIEWBOX = "0 0 380 400";
+const DIAMOND_OUTLINE = "190,20 340,140 280,320 100,320 40,140";
+const TRIANGLE_OUTLINE = "190,20 350,260 290,300 90,300 30,260";
+
 const floorZones = [
-  // Counted from the marked dots in the floor 2 photo: ~15 seats left + ~15 right of the center aisle.
-  { id: "f2-reading", floor: "ชั้น 2", zone: "พื้นที่นั่งอ่าน", zoneEn: "Reading Zone", layout: "split", leftCount: 15, rightCount: 15, bookedIdx: [2, 9, 20, 27] },
-  // Counted from the dot cluster near label 6 on the floor 3 photo (the arrow points to this cluster).
-  { id: "f3-pavilion", floor: "ชั้น 3", zone: "Pavilion Zone", zoneEn: "พื้นที่นั่งอ่าน", prefix: "P", count: 36, bookedIdx: [4, 15, 22, 30] },
-  // Counted from the dots scattered near zone 2 / zone 3 and along the pyramid edges on the floor 3 photo.
-  { id: "f3-nook", floor: "ชั้น 3", zone: "มุมอ่านริมชั้นหนังสือ", zoneEn: "Reading Nook", prefix: "N", count: 28, bookedIdx: [3, 10, 19, 24] },
+  {
+    id: "f2-reading", floor: "ชั้น 2", zone: "พื้นที่นั่งอ่าน", zoneEn: "Reading Zone", prefix: "A",
+    count: 30, bookedIdx: [2, 9, 20, 27],
+    viewBox: MAP_VIEWBOX, outline: DIAMOND_OUTLINE,
+    split: true, cols: 3,
+    leftRect: { x0: 55, y0: 150, w: 120, h: 150 },
+    rightRect: { x0: 205, y0: 150, w: 120, h: 150 },
+  },
+  {
+    id: "f3-pavilion", floor: "ชั้น 3", zone: "Pavilion Zone", zoneEn: "พื้นที่นั่งอ่าน", prefix: "P",
+    count: 39, bookedIdx: [5, 14, 22, 31],
+    viewBox: MAP_VIEWBOX, outline: TRIANGLE_OUTLINE,
+    cols: 6,
+    area: { x0: 55, y0: 110, w: 270, h: 175 },
+  },
+  {
+    id: "f3-nook", floor: "ชั้น 3", zone: "มุมอ่านริมชั้นหนังสือ", zoneEn: "Reading Nook", prefix: "N",
+    count: 46, bookedIdx: [6, 18, 29, 40],
+    viewBox: MAP_VIEWBOX, outline: TRIANGLE_OUTLINE,
+    cols: 7,
+    area: { x0: 55, y0: 110, w: 270, h: 175 },
+  },
 ];
 
 function zoneLabel(zoneDef) {
@@ -71,23 +95,26 @@ function zoneLabel(zoneDef) {
 }
 
 function buildZoneSeats(zoneDef) {
-  if (zoneDef.layout === "split") {
-    const left = Array.from({ length: zoneDef.leftCount }, (_, i) => ({
-      id: `A${String(i + 1).padStart(2, "0")}`,
-      side: "left",
-      booked: zoneDef.bookedIdx.includes(i),
-    }));
-    const right = Array.from({ length: zoneDef.rightCount }, (_, i) => ({
-      id: `B${String(i + 1).padStart(2, "0")}`,
-      side: "right",
-      booked: zoneDef.bookedIdx.includes(zoneDef.leftCount + i),
-    }));
-    return [...left, ...right];
-  }
   return Array.from({ length: zoneDef.count }, (_, i) => ({
     id: `${zoneDef.prefix}${String(i + 1).padStart(2, "0")}`,
     booked: zoneDef.bookedIdx.includes(i),
   }));
+}
+
+function gridPoints(count, cols, rect, pad = 4) {
+  const rows = Math.ceil(count / cols);
+  const cellW = rect.w / cols;
+  const cellH = rect.h / rows;
+  return Array.from({ length: count }, (_, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    return {
+      cx: rect.x0 + cellW * (col + 0.5),
+      cy: rect.y0 + cellH * (row + 0.5),
+      w: cellW - pad,
+      h: cellH - pad,
+    };
+  });
 }
 
 function buildInitialSeatsByZone() {
@@ -271,6 +298,7 @@ export default function App() {
                 <SeatMapScreen
                   seats={seats}
                   zones={floorZones}
+                  activeZone={activeZone}
                   activeZoneId={activeZoneId}
                   onChangeZone={changeZone}
                   selectedSeat={selectedSeat}
@@ -375,6 +403,10 @@ function LoginScreen({ studentId, setStudentId, password, setPassword, onLogin }
       </div>
       <button style={styles.btnGhostBlock} onClick={onLogin}>เข้าสู่ระบบด้วย SSO มหาวิทยาลัย</button>
       <p style={styles.signupText}>ยังไม่มีบัญชี? <span style={styles.linkText}>สมัครสมาชิก</span></p>
+
+      <a href="/guide.html" target="_blank" rel="noopener" style={styles.guideLinkLogin}>
+        📘 ดูวิธีใช้งานระบบก่อนเข้าสู่ระบบ
+      </a>
     </div>
   );
 }
@@ -436,7 +468,20 @@ function HomeScreen({ user, availableCount, bookedCount, bookings, onSeatmap, on
   );
 }
 
-function SeatMapScreen({ seats, zones, activeZoneId, onChangeZone, selectedSeat, onPick, onBack, onNext }) {
+function SeatMapScreen({ seats, zones, activeZone, activeZoneId, onChangeZone, selectedSeat, onPick, onBack, onNext }) {
+  let positions;
+  let aisleX = null;
+
+  if (activeZone.split) {
+    const half = Math.ceil(seats.length / 2);
+    const left = gridPoints(half, activeZone.cols, activeZone.leftRect);
+    const right = gridPoints(seats.length - half, activeZone.cols, activeZone.rightRect);
+    positions = [...left, ...right];
+    aisleX = activeZone.leftRect.x0 + activeZone.leftRect.w + (activeZone.rightRect.x0 - (activeZone.leftRect.x0 + activeZone.leftRect.w)) / 2;
+  } else {
+    positions = gridPoints(seats.length, activeZone.cols, activeZone.area);
+  }
+
   return (
     <div style={styles.screen}>
       <ScreenHeader title="แผนผังที่นั่ง" onBack={onBack} />
@@ -459,53 +504,51 @@ function SeatMapScreen({ seats, zones, activeZoneId, onChangeZone, selectedSeat,
         <span style={styles.legendItem}><i style={{ ...styles.legendDot, background: "#F3B4B4" }} />ถูกจอง</span>
       </div>
 
-      {seats[0]?.side ? (
-        <>
-          <div style={styles.seatSplitRow}>
-            <div style={styles.seatSplitCol}>
-              {seats.filter((s) => s.side === "left").map((s) => (
-                <SeatButton key={s.id} seat={s} selected={selectedSeat?.id === s.id} onPick={onPick} />
-              ))}
-            </div>
-            <div style={styles.seatAisle} />
-            <div style={styles.seatSplitCol}>
-              {seats.filter((s) => s.side === "right").map((s) => (
-                <SeatButton key={s.id} seat={s} selected={selectedSeat?.id === s.id} onPick={onPick} />
-              ))}
-            </div>
-          </div>
-          <p style={styles.aisleCaption}>↑ ทางเดินตรงกลาง (ตามผังจริงหน้าห้องสมุด)</p>
-        </>
-      ) : (
-        <div style={styles.seatGrid}>
-          {seats.map((s) => (
-            <SeatButton key={s.id} seat={s} selected={selectedSeat?.id === s.id} onPick={onPick} />
-          ))}
-        </div>
-      )}
+      <div style={styles.floorSvgWrap}>
+        <svg viewBox={activeZone.viewBox} style={styles.floorSvg}>
+          <polygon points={activeZone.outline} fill="#fff" stroke={line} strokeWidth="2.5" />
+          {aisleX !== null && (
+            <line
+              x1={aisleX} y1={activeZone.leftRect.y0 - 14}
+              x2={aisleX} y2={activeZone.leftRect.y0 + activeZone.leftRect.h + 14}
+              stroke="#C9D2E3" strokeWidth="2" strokeDasharray="5 5"
+            />
+          )}
+          {seats.map((s, i) => {
+            const p = positions[i];
+            const isSel = selectedSeat?.id === s.id;
+            const fill = s.booked ? "#F3B4B4" : isSel ? primary : "#EAF1FF";
+            const stroke = s.booked ? "#D64545" : isSel ? primary : "#C9D2E3";
+            const textColor = s.booked ? "#D64545" : isSel ? "#fff" : ink;
+            const fontSize = Math.max(9, Math.min(p.w, p.h) * 0.46);
+            return (
+              <g
+                key={s.id}
+                onClick={() => onPick(s)}
+                style={{ cursor: s.booked ? "not-allowed" : "pointer" }}
+              >
+                <rect x={p.cx - p.w / 2} y={p.cy - p.h / 2} width={p.w} height={p.h} rx="6" fill={fill} stroke={stroke} strokeWidth="1.6" />
+                <text
+                  x={p.cx} y={p.cy} textAnchor="middle" dominantBaseline="central"
+                  fontSize={fontSize} fontWeight="700" fill={textColor}
+                  style={{ fontFamily: "'Noto Sans Thai', sans-serif", pointerEvents: "none" }}
+                >
+                  {s.id}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
 
-      <p style={styles.caption}>เลือกโต๊ะที่ว่างเพื่อดำเนินการต่อ · จองล่วงหน้าได้สูงสุด 7 วัน</p>
+      <p style={styles.caption}>
+        {selectedSeat ? `เลือกอยู่: โต๊ะ ${selectedSeat.id}` : "แตะโต๊ะที่ว่างบนผังเพื่อเลือก"} · จองล่วงหน้าได้สูงสุด 7 วัน
+      </p>
 
       <button style={{ ...styles.btnPrimaryBlock, opacity: selectedSeat ? 1 : 0.4 }} disabled={!selectedSeat} onClick={onNext}>
         ดำเนินการต่อ
       </button>
     </div>
-  );
-}
-
-function SeatButton({ seat, selected, onPick }) {
-  return (
-    <button
-      disabled={seat.booked}
-      onClick={() => onPick(seat)}
-      style={{
-        ...styles.seat,
-        ...(seat.booked ? styles.seatBooked : {}),
-        ...(selected ? styles.seatSelected : {}),
-      }}
-    >
-      {seat.id}
-    </button>
   );
 }
 
@@ -721,6 +764,10 @@ function ProfileScreen({ user, onLogout }) {
           <p style={styles.bookingMeta}>รหัสนิสิต {user?.studentId}</p>
         </div>
       </div>
+      <a href="/guide.html" target="_blank" rel="noopener" style={styles.guideLink}>
+        📘 คู่มือการใช้งานระบบ
+      </a>
+
       <button style={styles.btnGhostBlock} onClick={onLogout}>ออกจากระบบ</button>
     </div>
   );
@@ -894,17 +941,8 @@ const styles = {
   legendItem: { display: "inline-flex", alignItems: "center", gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 3, display: "inline-block" },
 
-  seatGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 },
-  seatSplitRow: { display: "flex", gap: 14, marginBottom: 6 },
-  seatSplitCol: { flex: 1, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 },
-  seatAisle: { width: 2, background: line, borderRadius: 2, flexShrink: 0 },
-  aisleCaption: { fontSize: 11.5, color: "#B3BACB", textAlign: "center", marginBottom: 14 },
-  seat: {
-    aspectRatio: "1", border: `1.5px solid ${line}`, background: "#fff", borderRadius: 10,
-    fontSize: 12.5, fontWeight: 600, color: ink, cursor: "pointer",
-  },
-  seatBooked: { background: "#FDEDED", borderColor: "#F3B4B4", color: "#D64545", cursor: "not-allowed" },
-  seatSelected: { background: primary, borderColor: primary, color: "#fff" },
+  floorSvgWrap: { background: "#F4F6FB", border: `1px solid ${line}`, borderRadius: 16, padding: 8, marginBottom: 10 },
+  floorSvg: { width: "100%", height: "auto", display: "block" },
 
   caption: { fontSize: 12, color: muted, marginBottom: 16, lineHeight: 1.5 },
 
@@ -954,6 +992,15 @@ const styles = {
 
   profileCard: { display: "flex", alignItems: "center", gap: 14, background: "#fff", border: `1px solid ${line}`, borderRadius: 14, padding: "16px 18px", marginBottom: 20 },
   profileAvatar: { width: 48, height: 48, borderRadius: "50%", background: primary, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700 },
+  guideLink: {
+    display: "block", textAlign: "center", textDecoration: "none", color: primary,
+    background: "#EAF1FF", border: `1px solid ${line}`, borderRadius: 12, padding: "13px 0",
+    fontSize: 14, fontWeight: 600, marginBottom: 12, fontFamily: "'Noto Sans Thai', sans-serif",
+  },
+  guideLinkLogin: {
+    display: "block", textAlign: "center", textDecoration: "none", color: primary,
+    fontSize: 13, fontWeight: 600, marginTop: 18, fontFamily: "'Noto Sans Thai', sans-serif",
+  },
 
   bottomNav: { display: "flex", borderTop: `1px solid ${line}`, background: "#fff", padding: "8px 0 10px" },
   navItem: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, border: "none", background: "transparent", cursor: "pointer", fontFamily: "'Noto Sans Thai', sans-serif" },
