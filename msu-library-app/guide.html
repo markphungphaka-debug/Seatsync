@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>วิธีใช้งาน SeatSync</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap');
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #EEF2FA;
+    font-family: 'Noto Sans Thai', sans-serif;
+    color: #1E2433;
+    padding: 28px 16px 60px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  .header { text-align: center; margin-bottom: 34px; }
+  .logo {
+    width: 54px; height: 54px; background: #2454E0; color: #fff;
+    border-radius: 15px; display: flex; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 800; margin: 0 auto 10px;
+  }
+  .brand { font-size: 20px; font-weight: 800; margin: 0; }
+  .subbrand { font-size: 13px; color: #7C8598; margin: 2px 0 14px; }
+  h1 { font-size: 24px; font-weight: 800; margin: 0; line-height: 1.3; }
+  .lead { font-size: 14px; color: #7C8598; margin: 10px auto 0; max-width: 520px; line-height: 1.7; }
+
+  .card {
+    background: #fff; border: 1px solid #E4E8F1; border-radius: 20px;
+    padding: 24px 22px; margin-bottom: 20px;
+  }
+  .card-title { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; }
+  .card-title .tag {
+    font-size: 11px; font-weight: 700; color: #2454E0; background: #EAF1FF;
+    padding: 4px 10px; border-radius: 20px;
+  }
+  .card-title h2 { font-size: 17px; margin: 0; font-weight: 800; }
+
+  .steps { position: relative; }
+  .step { display: flex; gap: 14px; padding-bottom: 20px; position: relative; }
+  .step:last-child { padding-bottom: 0; }
+  .step::before {
+    content: ""; position: absolute; left: 15px; top: 34px; bottom: 0;
+    width: 2px; background: #E4E8F1;
+  }
+  .step:last-child::before { display: none; }
+  .num {
+    flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+    background: #2454E0; color: #fff; display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 14px; z-index: 1;
+  }
+  .step-body { padding-top: 4px; }
+  .step-title { font-weight: 700; font-size: 14.5px; margin: 0 0 3px; }
+  .step-desc { font-size: 13px; color: #7C8598; margin: 0; line-height: 1.6; }
+
+  .branch-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .branch-col {
+    flex: 1; min-width: 230px; background: #F7F9FD; border: 1px solid #E4E8F1;
+    border-radius: 16px; padding: 18px;
+  }
+  .branch-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .branch-icon { font-size: 18px; }
+  .branch-head h3 { font-size: 14.5px; margin: 0; font-weight: 800; }
+  .mini-steps { list-style: none; margin: 0; padding: 0; }
+  .mini-steps li {
+    font-size: 13px; color: #3A4256; padding: 8px 0 8px 24px; position: relative;
+    border-bottom: 1px dashed #E4E8F1;
+  }
+  .mini-steps li:last-child { border-bottom: none; }
+  .mini-steps li::before {
+    content: "→"; position: absolute; left: 0; color: #2454E0; font-weight: 700;
+  }
+
+  .note {
+    font-size: 12.5px; color: #9A6B00; background: #FFF7E6; border: 1px solid #FFE3A3;
+    border-radius: 12px; padding: 12px 14px; margin-top: 16px; line-height: 1.6;
+  }
+
+  /* flow diagram */
+  .flow { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .fbox {
+    background: #fff; border: 1.5px solid #2454E0; color: #2454E0; font-weight: 700;
+    font-size: 12.5px; border-radius: 10px; padding: 9px 16px; text-align: center;
+    white-space: nowrap;
+  }
+  .fbox.solid { background: #2454E0; color: #fff; }
+  .farrow { font-size: 16px; color: #B3BACB; margin: 2px 0; }
+  .fsplit { display: flex; gap: 22px; align-items: flex-start; margin: 2px 0; }
+  .fcol { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .fcol-label { font-size: 11px; color: #9AA3B5; margin-bottom: 4px; font-weight: 700; }
+  .fmerge { font-size: 11px; color: #9AA3B5; margin: 4px 0; }
+
+  @media (max-width: 480px) {
+    .fsplit { flex-direction: column; align-items: center; gap: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="logo">S</div>
+    <p class="brand">SeatSync</p>
+    <p class="subbrand">จองที่นั่งหอสมุด มหาวิทยาลัยมหาสารคาม</p>
+    <h1>วิธีใช้งานระบบจองโต๊ะห้องสมุดผ่านเว็บไซต์</h1>
+    <p class="lead">ระบบช่วยให้ผู้ใช้ตรวจสอบสถานะโต๊ะและจองโต๊ะล่วงหน้าผ่านเว็บไซต์ รองรับทั้งผู้ที่วางแผนมาล่วงหน้าและผู้ที่เดินมาถึงห้องสมุดแล้ว (Walk-in)</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <span class="tag">เส้นทางหลัก</span>
+      <h2>จองล่วงหน้า</h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="num">1</div>
+        <div class="step-body">
+          <p class="step-title">เปิดเว็บไซต์</p>
+          <p class="step-desc">เข้าเว็บไซต์ SeatSync ผ่านลิงก์หรือสแกน QR Code หน้าห้องสมุด</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <div class="step-body">
+          <p class="step-title">กรอกรหัสเข้าใช้งาน</p>
+          <p class="step-desc">เข้าสู่ระบบด้วยบัญชีนิสิต</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <div class="step-body">
+          <p class="step-title">ดูภาพรวมสถานะ</p>
+          <p class="step-desc">เห็นจำนวนที่ว่าง/ถูกจองทั้งห้องสมุดจากหน้าแรก</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">4</div>
+        <div class="step-body">
+          <p class="step-title">เลือกชั้น/โซน</p>
+          <p class="step-desc">ชั้น 2 พื้นที่นั่งอ่าน, ชั้น 3 Pavilion Zone, ชั้น 3 มุมอ่านริมชั้นหนังสือ</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">5</div>
+        <div class="step-body">
+          <p class="step-title">เลือกโต๊ะ</p>
+          <p class="step-desc">เลือกโต๊ะที่ต้องการจากผังที่นั่ง ตรวจสอบสถานะว่าง/ไม่ว่างได้จากสีบนผังทันที</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">6</div>
+        <div class="step-body">
+          <p class="step-title">เลือกวันและเวลา</p>
+          <p class="step-desc">เลือกวันที่และช่วงเวลาที่ต้องการจอง</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">7</div>
+        <div class="step-body">
+          <p class="step-title">ยืนยันการจอง</p>
+          <p class="step-desc">ตรวจสอบข้อมูลแล้วยืนยัน ระบบออกรหัสการจองให้</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">8</div>
+        <div class="step-body">
+          <p class="step-title">เช็กอินด้วย QR Code</p>
+          <p class="step-desc">สแกนยืนยันเมื่อมาถึงโต๊ะจริงภายในเวลาที่กำหนด หากไม่เช็กอินตามเวลา ระบบจะยกเลิกการจองอัตโนมัติและคืนที่ให้ผู้อื่น</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">9</div>
+        <div class="step-body">
+          <p class="step-title">ตรวจสอบ/ยกเลิกการจอง</p>
+          <p class="step-desc">ดูรายละเอียดการจองของตนเองและยกเลิกได้จากหน้า "การจองของฉัน" พร้อมรับการแจ้งเตือนก่อนหมดเวลา</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <span class="tag" style="color:#1F8A4C;background:#E7F3EA;">เส้นทางเสริม</span>
+      <h2>Walk-in — สำหรับคนที่เดินมาถึงห้องสมุดแล้ว</h2>
+    </div>
+    <div class="branch-row">
+      <div class="branch-col">
+        <div class="branch-head"><span class="branch-icon">📷</span><h3>สแกน QR ที่โต๊ะ</h3></div>
+        <ul class="mini-steps">
+          <li>เจอโต๊ะว่างตรงหน้า</li>
+          <li>สแกน QR ที่ติดบนโต๊ะ</li>
+          <li>ระบบจองโต๊ะนั้นให้ทันที</li>
+          <li>เลือกช่วงเวลา → ยืนยัน → เช็กอิน</li>
+        </ul>
+      </div>
+      <div class="branch-col">
+        <div class="branch-head"><span class="branch-icon">🗺️</span><h3>สแกน QR หน้าทางเข้า</h3></div>
+        <ul class="mini-steps">
+          <li>สแกน QR ที่ป้ายทางเข้า</li>
+          <li>ดูภาพรวมที่ว่างทุกชั้นก่อนตัดสินใจ</li>
+          <li>เลือกชั้น/โซน → เลือกโต๊ะ</li>
+          <li>เลือกเวลา → ยืนยัน → เช็กอิน</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note">⚡ ทั้ง 2 ทางลัดนี้ข้ามขั้นตอนที่ 3-6 ของเส้นทางหลักไป ทำให้จองเสร็จได้ไวกว่าการไล่เมนูเอง เหมาะกับคนที่ไม่ได้วางแผนมาล่วงหน้า</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <span class="tag">ภาพรวม</span>
+      <h2>ผังขั้นตอนทั้งหมด</h2>
+    </div>
+    <div class="flow">
+      <div class="fbox solid">เปิดเว็บไซต์ → เข้าสู่ระบบ → ดูภาพรวม</div>
+      <div class="farrow">↓</div>
+      <div class="fsplit">
+        <div class="fcol">
+          <div class="fcol-label">จองล่วงหน้า</div>
+          <div class="fbox">เลือกโซน/โต๊ะ</div>
+          <div class="farrow">↓</div>
+          <div class="fbox">เลือกวัน-เวลา</div>
+        </div>
+        <div class="fcol">
+          <div class="fcol-label">Walk-in · สแกน QR ที่โต๊ะ</div>
+          <div class="fbox">จองทันที</div>
+          <div class="farrow">↓</div>
+          <div class="fbox">เลือกเวลา</div>
+        </div>
+        <div class="fcol">
+          <div class="fcol-label">Walk-in · สแกน QR ทางเข้า</div>
+          <div class="fbox">ดูภาพรวม → เลือกโซน/โต๊ะ</div>
+          <div class="farrow">↓</div>
+          <div class="fbox">เลือกเวลา</div>
+        </div>
+      </div>
+      <div class="fmerge">รวมเส้นทางเข้าด้วยกัน</div>
+      <div class="farrow">↓</div>
+      <div class="fbox solid">ยืนยันการจอง</div>
+      <div class="farrow">↓</div>
+      <div class="fbox solid">เช็กอินด้วย QR Code</div>
+      <div class="farrow">↓</div>
+      <div class="fbox">ดู/ยกเลิกการจอง + รับแจ้งเตือน</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
