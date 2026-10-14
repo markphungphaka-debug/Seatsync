@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useLayoutEffect } from "react";
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap');`;
 
@@ -67,7 +67,7 @@ const TRIANGLE_OUTLINE = "190,20 350,260 290,300 90,300 30,260";
 
 const floorZones = [
   {
-    id: "f2-reading", floor: "ชั้น 2", zone: "พื้นที่นั่งอ่าน", zoneEn: "Reading Zone", prefix: "A",
+    id: "f2-reading", plan: "f2", snap: true, points: [[726,662],[746,680],[470,692],[500,692],[530,692],[620,692],[650,692],[680,692],[440,722],[470,722],[500,722],[530,722],[620,722],[650,722],[680,722],[470,752],[500,752],[530,752],[620,752],[650,752],[680,752],[500,782],[530,782],[620,782],[650,782],[680,782],[500,812],[530,812],[620,812],[650,812]], floor: "ชั้น 2", zone: "พื้นที่นั่งอ่าน", zoneEn: "Reading Zone", prefix: "A",
     count: 30, bookedIdx: [2, 9, 20, 27],
     viewBox: MAP_VIEWBOX, outline: DIAMOND_OUTLINE,
     split: true, cols: 3,
@@ -75,14 +75,14 @@ const floorZones = [
     rightRect: { x0: 205, y0: 150, w: 120, h: 150 },
   },
   {
-    id: "f3-pavilion", floor: "ชั้น 3", zone: "Pavilion Zone", zoneEn: "พื้นที่นั่งอ่าน", prefix: "P",
-    count: 39, bookedIdx: [5, 14, 22, 31],
+    id: "f3-pavilion", plan: "f3", snap: true, points: [[624,832],[611,833],[546,834],[558,834],[572,834],[585,834],[598,834],[520,835],[532,835],[454,836],[467,836],[480,836],[493,836],[506,836],[585,846],[598,846],[612,846],[624,846],[638,846],[572,847],[506,848],[520,848],[533,848],[546,848],[559,848],[480,849],[494,849],[454,850],[468,850],[546,860],[560,860],[572,860],[586,860],[598,860],[533,861],[468,862],[480,862],[494,862],[507,862],[520,862],[454,863]], floor: "ชั้น 3", zone: "Pavilion Zone", zoneEn: "พื้นที่นั่งอ่าน", prefix: "P",
+    count: 41, bookedIdx: [5, 14, 22, 31],
     viewBox: MAP_VIEWBOX, outline: TRIANGLE_OUTLINE,
     cols: 6,
     area: { x0: 55, y0: 110, w: 270, h: 175 },
   },
   {
-    id: "f3-nook", floor: "ชั้น 3", zone: "มุมอ่านริมชั้นหนังสือ", zoneEn: "Reading Nook", prefix: "N",
+    id: "f3-nook", plan: "f3", points: [[534,481],[558,481],[508,506],[534,506],[558,506],[584,506],[350,584],[486,588],[340,594],[360,594],[625,594],[474,601],[330,604],[350,604],[370,604],[642,612],[320,614],[340,614],[360,614],[380,614],[462,614],[310,624],[330,624],[350,624],[370,624],[389,624],[451,626],[660,631],[320,634],[340,634],[360,634],[379,634],[440,638],[310,643],[330,644],[350,644],[369,644],[428,651],[320,653],[340,654],[359,654],[330,663],[416,663],[350,664],[340,673],[404,676]], floor: "ชั้น 3", zone: "มุมอ่านริมชั้นหนังสือ", zoneEn: "Reading Nook", prefix: "N",
     count: 46, bookedIdx: [6, 18, 29, 40],
     viewBox: MAP_VIEWBOX, outline: TRIANGLE_OUTLINE,
     cols: 7,
@@ -115,6 +115,137 @@ function gridPoints(count, cols, rect, pad = 4) {
       h: cellH - pad,
     };
   });
+}
+
+
+
+// Wall lines traced from the floor-plan signs (same pixel space as the seat dots),
+// so every seat is drawn at its real spot inside the real room.
+const FLOOR_PLANS = {
+  f2: {
+    walls: [
+      [[548,375],[605,375],[920,700],[692,932],[692,998],[463,998],[463,932],[231,700],[548,375]],
+    ],
+    lines: [
+      [[421,688],[548,555],[604,555],[656,610]],
+      [[500,654],[512,634],[642,634],[660,654],[642,674],[512,674],[500,654]],
+      [[377,555],[462,645]],
+      [[320,617],[405,705]],
+      [[322,792],[382,730],[465,822]],
+      [[352,820],[392,780],[452,835]],
+      [[410,880],[452,835]],
+      [[684,640],[830,787]],
+      [[775,735],[860,645]],
+      [[717,792],[765,745]],
+      [[650,860],[700,812],[745,877]],
+      [[463,932],[525,932],[525,998]],
+      [[631,998],[631,932],[692,932]],
+    ],
+    labels: [
+      { x: 576, y: 470, t: "ศูนย์สารนิเทศอีสานฯ" },
+      { x: 400, y: 612, t: "สำนักงาน" },
+      { x: 300, y: 700, t: "ห้องประชุม 2" },
+      { x: 768, y: 832, t: "สอบถาม" },
+      { x: 682, y: 893, t: "ยืม-คืน" },
+      { x: 360, y: 790, t: "ห้องน้ำ" },
+      { x: 800, y: 760, t: "ห้องน้ำ" },
+      { x: 580, y: 656, t: "บันได" },
+      { x: 494, y: 968, t: "ลิฟต์" },
+      { x: 578, y: 968, t: "▲ ทางเข้า-ออก", strong: true },
+    ],
+  },
+  f3: {
+    walls: [
+      [[519,374],[577,372],[909,725],[910,747],[882,777],[862,777],[862,822],[819,822],[819,801],[630,801],[630,825],[475,827],[475,805],[292,806],[291,829],[250,829],[250,785],[232,785],[204,757],[204,735],[519,374]],
+    ],
+    lines: [
+      [[507,577],[595,577],[605,590],[703,695],[677,724],[428,727],[402,700],[502,590],[507,577]],
+      [[515,580],[587,580],[587,604],[515,604],[515,580]],
+      [[502,400],[550,447]],
+      [[550,447],[452,550]],
+      [[550,447],[747,655]],
+      [[410,500],[452,550]],
+      [[352,570],[402,610]],
+      [[260,675],[337,730],[292,770]],
+      [[745,695],[800,632]],
+      [[780,740],[850,662]],
+      [[475,782],[680,780]],
+      [[745,780],[860,778]],
+    ],
+    labels: [
+      { x: 657, y: 522, t: "หนังสือภาษาไทย" },
+      { x: 470, y: 462, t: "หนังสือต่างประเทศ" },
+      { x: 405, y: 535, t: "นวนิยาย" },
+      { x: 852, y: 735, t: "อ้างอิง 900" },
+      { x: 350, y: 778, t: "สารสนเทศ" },
+      { x: 553, y: 760, t: "Pavilion Zone", strong: true },
+      { x: 712, y: 770, t: "พื้นที่พักผ่อน" },
+      { x: 300, y: 690, t: "ห้องน้ำ" },
+      { x: 803, y: 690, t: "ห้องน้ำ" },
+      { x: 551, y: 594, t: "บันได" },
+      { x: 495, y: 795, t: "ลิฟต์" },
+    ],
+  },
+};
+
+// Seats are placed at the REAL positions of the red dots marked on the floor-plan
+// photos. Points are scaled so the closest two seats still have a comfortable
+// gap, numbered row by row, and the map can be zoomed for easy tapping.
+const SEAT_SIZE = 30;
+const layoutCache = {};
+function minSpacing(pts) {
+  let m = Infinity;
+  for (let i = 0; i < pts.length; i++)
+    for (let j = i + 1; j < pts.length; j++)
+      m = Math.min(m, Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1]));
+  return m;
+}
+function layoutZone(zoneDef) {
+  if (layoutCache[zoneDef.id]) return layoutCache[zoneDef.id];
+  const plan = FLOOR_PLANS[zoneDef.plan];
+  const pts = zoneDef.points;
+  const minNN = minSpacing(pts);
+  const k = SEAT_SIZE / (minNN * 0.8);
+  const all = [...pts, ...plan.walls.flat()];
+  const x0 = Math.min(...all.map((p) => p[0]));
+  const y0 = Math.min(...all.map((p) => p[1]));
+  const x1 = Math.max(...all.map((p) => p[0]));
+  const y1 = Math.max(...all.map((p) => p[1]));
+  const pad = 30;
+  const tx = (x) => (x - x0) * k + pad;
+  const ty = (y) => (y - y0) * k + pad;
+
+  // group dots into rows and number them left -> right, top -> bottom
+  const sorted = pts.map((p) => ({ x: p[0], y: p[1] })).sort((a, b) => a.y - b.y);
+  const rows = [];
+  sorted.forEach((p) => {
+    const last = rows[rows.length - 1];
+    if (last && p.y - last[0].y < minNN * 0.6) last.push(p);
+    else rows.push([p]);
+  });
+  const positions = rows
+    .flatMap((row) => {
+      const my = row.reduce((a, p) => a + p.y, 0) / row.length;
+      return row.sort((a, b) => a.x - b.x).map((p) => ({ x: p.x, y: zoneDef.snap ? my : p.y }));
+    })
+    .map((p) => ({ cx: tx(p.x), cy: ty(p.y) }));
+
+  const toPts = (poly) => poly.map(([x, y]) => `${tx(x).toFixed(1)},${ty(y).toFixed(1)}`).join(" ");
+  const others = floorZones
+    .filter((z) => z.plan === zoneDef.plan && z.id !== zoneDef.id)
+    .flatMap((z) => z.points.map(([x, y]) => ({ cx: tx(x), cy: ty(y) })));
+  const cxs = positions.map((p) => p.cx), cys = positions.map((p) => p.cy);
+  const res = {
+    k, positions, others,
+    walls: plan.walls.map(toPts),
+    lines: plan.lines.map(toPts),
+    labels: plan.labels.map((l) => ({ ...l, x: tx(l.x), y: ty(l.y) })),
+    width: (x1 - x0) * k + pad * 2,
+    height: (y1 - y0) * k + pad * 2,
+    focus: { x: (Math.min(...cxs) + Math.max(...cxs)) / 2, y: (Math.min(...cys) + Math.max(...cys)) / 2 },
+  };
+  layoutCache[zoneDef.id] = res;
+  return res;
 }
 
 function buildInitialSeatsByZone() {
@@ -194,6 +325,13 @@ export default function App() {
   };
 
   const [view, setView] = useState("home"); // home | seatmap | time | confirm | checkin
+  const [showWelcome, setShowWelcome] = useState(() => {
+    try { return !localStorage.getItem("seatsync_seen_guide"); } catch (e) { return true; }
+  });
+  const closeWelcome = () => {
+    try { localStorage.setItem("seatsync_seen_guide", "1"); } catch (e) {}
+    setShowWelcome(false);
+  };
 
   const pickSeat = (seat) => {
     if (seat.booked) return;
@@ -255,6 +393,27 @@ export default function App() {
     <div style={styles.appFrame}>
       <style>{FONT_IMPORT}</style>
       <div style={styles.phone}>
+        {showWelcome && (
+          <div style={styles.welcomeOverlay} onClick={closeWelcome}>
+            <div style={styles.welcomeCard} onClick={(e) => e.stopPropagation()}>
+              <div style={styles.welcomeIcon}>📖</div>
+              <div style={styles.welcomeTitle}>ยินดีต้อนรับสู่ SeatSync</div>
+              <div style={styles.welcomeText}>
+                ใช้งานครั้งแรกใช่ไหม? ดูวิธีจองที่นั่งและวิธีสแกน QR สำหรับ Walk-in ได้ในไม่กี่นาที
+              </div>
+              <a
+                href="/guide.html"
+                target="_blank"
+                rel="noopener"
+                onClick={closeWelcome}
+                style={styles.welcomePrimary}
+              >
+                ดูวิธีการใช้งาน
+              </a>
+              <button style={styles.welcomeSkip} onClick={closeWelcome}>ข้าม เริ่มใช้งานเลย</button>
+            </div>
+          </div>
+        )}
         {screen === "login" ? (
           <LoginScreen
             studentId={studentId}
@@ -469,19 +628,6 @@ function HomeScreen({ user, availableCount, bookedCount, bookings, onSeatmap, on
 }
 
 function SeatMapScreen({ seats, zones, activeZone, activeZoneId, onChangeZone, selectedSeat, onPick, onBack, onNext }) {
-  let positions;
-  let aisleX = null;
-
-  if (activeZone.split) {
-    const half = Math.ceil(seats.length / 2);
-    const left = gridPoints(half, activeZone.cols, activeZone.leftRect);
-    const right = gridPoints(seats.length - half, activeZone.cols, activeZone.rightRect);
-    positions = [...left, ...right];
-    aisleX = activeZone.leftRect.x0 + activeZone.leftRect.w + (activeZone.rightRect.x0 - (activeZone.leftRect.x0 + activeZone.leftRect.w)) / 2;
-  } else {
-    positions = gridPoints(seats.length, activeZone.cols, activeZone.area);
-  }
-
   return (
     <div style={styles.screen}>
       <ScreenHeader title="แผนผังที่นั่ง" onBack={onBack} />
@@ -499,47 +645,12 @@ function SeatMapScreen({ seats, zones, activeZone, activeZoneId, onChangeZone, s
       </div>
 
       <div style={styles.legendRow}>
-        <span style={styles.legendItem}><i style={{ ...styles.legendDot, background: "#fff", border: "1.5px solid #C9D2E3" }} />ว่าง</span>
+        <span style={styles.legendItem}><i style={{ ...styles.legendDot, background: "#EAF1FF", border: "1.5px solid #C9D2E3" }} />ว่าง</span>
         <span style={styles.legendItem}><i style={{ ...styles.legendDot, background: primary }} />เลือกอยู่</span>
         <span style={styles.legendItem}><i style={{ ...styles.legendDot, background: "#F3B4B4" }} />ถูกจอง</span>
       </div>
 
-      <div style={styles.floorSvgWrap}>
-        <svg viewBox={activeZone.viewBox} style={styles.floorSvg}>
-          <polygon points={activeZone.outline} fill="#fff" stroke={line} strokeWidth="2.5" />
-          {aisleX !== null && (
-            <line
-              x1={aisleX} y1={activeZone.leftRect.y0 - 14}
-              x2={aisleX} y2={activeZone.leftRect.y0 + activeZone.leftRect.h + 14}
-              stroke="#C9D2E3" strokeWidth="2" strokeDasharray="5 5"
-            />
-          )}
-          {seats.map((s, i) => {
-            const p = positions[i];
-            const isSel = selectedSeat?.id === s.id;
-            const fill = s.booked ? "#F3B4B4" : isSel ? primary : "#EAF1FF";
-            const stroke = s.booked ? "#D64545" : isSel ? primary : "#C9D2E3";
-            const textColor = s.booked ? "#D64545" : isSel ? "#fff" : ink;
-            const fontSize = Math.max(9, Math.min(p.w, p.h) * 0.46);
-            return (
-              <g
-                key={s.id}
-                onClick={() => onPick(s)}
-                style={{ cursor: s.booked ? "not-allowed" : "pointer" }}
-              >
-                <rect x={p.cx - p.w / 2} y={p.cy - p.h / 2} width={p.w} height={p.h} rx="6" fill={fill} stroke={stroke} strokeWidth="1.6" />
-                <text
-                  x={p.cx} y={p.cy} textAnchor="middle" dominantBaseline="central"
-                  fontSize={fontSize} fontWeight="700" fill={textColor}
-                  style={{ fontFamily: "'Noto Sans Thai', sans-serif", pointerEvents: "none" }}
-                >
-                  {s.id}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
+      <ZoomableMap key={activeZoneId} zone={activeZone} seats={seats} selectedSeat={selectedSeat} onPick={onPick} />
 
       <p style={styles.caption}>
         {selectedSeat ? `เลือกอยู่: โต๊ะ ${selectedSeat.id}` : "แตะโต๊ะที่ว่างบนผังเพื่อเลือก"} · จองล่วงหน้าได้สูงสุด 7 วัน
@@ -548,6 +659,91 @@ function SeatMapScreen({ seats, zones, activeZone, activeZoneId, onChangeZone, s
       <button style={{ ...styles.btnPrimaryBlock, opacity: selectedSeat ? 1 : 0.4 }} disabled={!selectedSeat} onClick={onNext}>
         ดำเนินการต่อ
       </button>
+    </div>
+  );
+}
+
+function ZoomableMap({ zone, seats, selectedSeat, onPick }) {
+  const L = layoutZone(zone);
+  const boxRef = useRef(null);
+  const pending = useRef(null);
+  const fitScale = 340 / L.width;
+  const maxScale = 1.6;
+  const [scale, setScale] = useState(() => Math.max(fitScale, Math.min(maxScale, 0.85)));
+
+  // keep the point under the centre of the box in place while zooming
+  const centreOf = (sc) => {
+    const el = boxRef.current;
+    if (!el) return L.focus;
+    return { x: (el.scrollLeft + el.clientWidth / 2) / sc, y: (el.scrollTop + el.clientHeight / 2) / sc };
+  };
+  const zoomTo = (next) => {
+    const n = Math.max(fitScale, Math.min(maxScale, next));
+    pending.current = centreOf(scale);
+    setScale(n);
+  };
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const c = pending.current || L.focus;
+    el.scrollLeft = c.x * scale - el.clientWidth / 2;
+    el.scrollTop = c.y * scale - el.clientHeight / 2;
+    pending.current = null;
+  }, [scale]);
+
+  const labelSize = 12 / Math.max(scale, 0.35);
+  const fontFam = { fontFamily: "'Noto Sans Thai', sans-serif" };
+
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={styles.zoomBar}>
+        <span style={styles.zoomHint}>ซูม / เลื่อนดูตำแหน่งโต๊ะในชั้น</span>
+        <button style={styles.zoomBtn} onClick={() => zoomTo(fitScale)} aria-label="ดูทั้งชั้น" title="ดูทั้งชั้น">⤢</button>
+        <button style={styles.zoomBtn} onClick={() => zoomTo(scale / 1.4)} aria-label="ซูมออก">−</button>
+        <button style={styles.zoomBtn} onClick={() => zoomTo(scale * 1.4)} aria-label="ซูมเข้า">+</button>
+      </div>
+      <div ref={boxRef} style={styles.mapScroll}>
+        <svg
+          viewBox={`0 0 ${L.width} ${L.height}`}
+          width={L.width * scale}
+          height={L.height * scale}
+          style={{ display: "block" }}
+        >
+          {L.walls.map((w, i) => (
+            <polygon key={"w" + i} points={w} fill="#fff" stroke="#B8A066" strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+          ))}
+          {L.lines.map((w, i) => (
+            <polyline key={"l" + i} points={w} fill="none" stroke="#CDBF97" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+          ))}
+          {L.labels.map((l, i) => (
+            <text key={"t" + i} x={l.x} y={l.y} textAnchor="middle" dominantBaseline="central"
+              fontSize={l.strong ? labelSize * 1.1 : labelSize} fontWeight={l.strong ? 700 : 500}
+              fill={l.strong ? primary : "#9AA3B5"} style={{ ...fontFam, pointerEvents: "none" }}>
+              {l.t}
+            </text>
+          ))}
+          {L.others.map((p, i) => (
+            <circle key={"o" + i} cx={p.cx} cy={p.cy} r={SEAT_SIZE * 0.22} fill="#D5DBE7" />
+          ))}
+          {seats.map((s, i) => {
+            const p = L.positions[i];
+            if (!p) return null;
+            const isSel = selectedSeat?.id === s.id;
+            const fill = s.booked ? "#F3B4B4" : isSel ? primary : "#EAF1FF";
+            const stroke = s.booked ? "#D64545" : isSel ? primary : "#7E95C9";
+            const textColor = s.booked ? "#D64545" : isSel ? "#fff" : ink;
+            return (
+              <g key={s.id} onClick={() => onPick(s)} style={{ cursor: s.booked ? "not-allowed" : "pointer" }}>
+                <rect x={p.cx - SEAT_SIZE / 2} y={p.cy - SEAT_SIZE / 2} width={SEAT_SIZE} height={SEAT_SIZE} rx="7" fill={fill} stroke={stroke} strokeWidth="1.8" />
+                <text x={p.cx} y={p.cy} textAnchor="middle" dominantBaseline="central" fontSize="11.5" fontWeight="700" fill={textColor}
+                  style={{ ...fontFam, pointerEvents: "none" }}>
+                  {s.id}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
     </div>
   );
 }
@@ -785,9 +981,206 @@ function ScreenHeader({ title, onBack }) {
   );
 }
 
+/* ---------- Built-in QR code generator (no internet needed) ---------- */
+// Byte mode, error-correction level M, versions 1-10 (up to ~200 bytes).
+const QR_ECC_M = [0, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26];
+const QR_BLOCKS_M = [0, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5];
+
+function qrGfMul(x, y) {
+  let z = 0;
+  for (let i = 7; i >= 0; i--) {
+    z = (z << 1) ^ ((z >>> 7) * 0x11d);
+    z ^= ((y >>> i) & 1) * x;
+  }
+  return z & 0xff;
+}
+function qrRsDivisor(degree) {
+  const r = new Array(degree).fill(0);
+  r[degree - 1] = 1;
+  let root = 1;
+  for (let i = 0; i < degree; i++) {
+    for (let j = 0; j < r.length; j++) {
+      r[j] = qrGfMul(r[j], root);
+      if (j + 1 < r.length) r[j] ^= r[j + 1];
+    }
+    root = qrGfMul(root, 0x02);
+  }
+  return r;
+}
+function qrRsRemainder(data, divisor) {
+  const r = divisor.map(() => 0);
+  for (const b of data) {
+    const f = b ^ r.shift();
+    r.push(0);
+    divisor.forEach((c, i) => { r[i] ^= qrGfMul(c, f); });
+  }
+  return r;
+}
+function qrRawModules(ver) {
+  let n = (16 * ver + 128) * ver + 64;
+  if (ver >= 2) {
+    const na = Math.floor(ver / 7) + 2;
+    n -= (25 * na - 10) * na - 55;
+    if (ver >= 7) n -= 36;
+  }
+  return n;
+}
+function qrAlignPositions(ver, size) {
+  if (ver === 1) return [];
+  const na = Math.floor(ver / 7) + 2;
+  const step = Math.ceil((ver * 4 + 4) / (na * 2 - 2)) * 2;
+  const res = [6];
+  for (let pos = size - 7; res.length < na; pos -= step) res.splice(1, 0, pos);
+  return res;
+}
+
+function makeQrMatrix(text) {
+  const bytes = Array.from(new TextEncoder().encode(text));
+  let ver = 1, dataCap = 0;
+  for (; ver <= 10; ver++) {
+    dataCap = Math.floor(qrRawModules(ver) / 8) - QR_ECC_M[ver] * QR_BLOCKS_M[ver];
+    if (4 + (ver < 10 ? 8 : 16) + bytes.length * 8 <= dataCap * 8) break;
+  }
+  if (ver > 10) throw new Error("QR text too long");
+
+  // data bits
+  const bits = [];
+  const put = (val, len) => { for (let i = len - 1; i >= 0; i--) bits.push((val >>> i) & 1); };
+  put(4, 4);
+  put(bytes.length, ver < 10 ? 8 : 16);
+  bytes.forEach((b) => put(b, 8));
+  put(0, Math.min(4, dataCap * 8 - bits.length));
+  put(0, (8 - (bits.length % 8)) % 8);
+  const data = [];
+  for (let i = 0; i < bits.length; i += 8) data.push(parseInt(bits.slice(i, i + 8).join(""), 2));
+  for (let pad = 0xec; data.length < dataCap; pad ^= 0xec ^ 0x11) data.push(pad);
+
+  // error correction + interleave
+  const numBlocks = QR_BLOCKS_M[ver], eccLen = QR_ECC_M[ver];
+  const raw = Math.floor(qrRawModules(ver) / 8);
+  const numShort = numBlocks - (raw % numBlocks);
+  const shortLen = Math.floor(raw / numBlocks);
+  const div = qrRsDivisor(eccLen);
+  const blocks = [];
+  for (let i = 0, k = 0; i < numBlocks; i++) {
+    const dat = data.slice(k, k + shortLen - eccLen + (i < numShort ? 0 : 1));
+    k += dat.length;
+    const ecc = qrRsRemainder(dat, div);
+    if (i < numShort) dat.push(0);
+    blocks.push(dat.concat(ecc));
+  }
+  const codewords = [];
+  for (let i = 0; i < blocks[0].length; i++)
+    blocks.forEach((b, j) => { if (i !== shortLen - eccLen || j >= numShort) codewords.push(b[i]); });
+
+  // matrix + function patterns
+  const size = ver * 4 + 17;
+  const mod = Array.from({ length: size }, () => new Array(size).fill(false));
+  const fn = Array.from({ length: size }, () => new Array(size).fill(false));
+  const setF = (x, y, dark) => { mod[y][x] = dark; fn[y][x] = true; };
+  for (let i = 0; i < size; i++) { setF(6, i, i % 2 === 0); setF(i, 6, i % 2 === 0); }
+  [[3, 3], [size - 4, 3], [3, size - 4]].forEach(([cx, cy]) => {
+    for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+      const d = Math.max(Math.abs(dx), Math.abs(dy)), x = cx + dx, y = cy + dy;
+      if (x >= 0 && x < size && y >= 0 && y < size) setF(x, y, d !== 2 && d !== 4);
+    }
+  });
+  const ap = qrAlignPositions(ver, size);
+  ap.forEach((ax, i) => ap.forEach((ay, j) => {
+    if ((i === 0 && j === 0) || (i === 0 && j === ap.length - 1) || (i === ap.length - 1 && j === 0)) return;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++)
+      setF(ax + dx, ay + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+  }));
+  const drawFormat = (mask) => {
+    const d = (0 << 3) | mask; // level M = 0
+    let rem = d;
+    for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+    const b = ((d << 10) | rem) ^ 0x5412;
+    const bit = (i) => ((b >>> i) & 1) === 1;
+    for (let i = 0; i <= 5; i++) setF(8, i, bit(i));
+    setF(8, 7, bit(6)); setF(8, 8, bit(7)); setF(7, 8, bit(8));
+    for (let i = 9; i < 15; i++) setF(14 - i, 8, bit(i));
+    for (let i = 0; i < 8; i++) setF(size - 1 - i, 8, bit(i));
+    for (let i = 8; i < 15; i++) setF(8, size - 15 + i, bit(i));
+    setF(8, size - 8, true);
+  };
+  drawFormat(0);
+  if (ver >= 7) {
+    let rem = ver;
+    for (let i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1f25);
+    const b = (ver << 12) | rem;
+    for (let i = 0; i < 18; i++) {
+      const dark = ((b >>> i) & 1) === 1, a = size - 11 + (i % 3), c = Math.floor(i / 3);
+      setF(a, c, dark); setF(c, a, dark);
+    }
+  }
+
+  // place data (zig-zag)
+  let i = 0;
+  for (let right = size - 1; right >= 1; right -= 2) {
+    if (right === 6) right = 5;
+    for (let v = 0; v < size; v++) for (let j = 0; j < 2; j++) {
+      const x = right - j, up = ((right + 1) & 2) === 0, y = up ? size - 1 - v : v;
+      if (!fn[y][x] && i < codewords.length * 8) {
+        mod[y][x] = ((codewords[i >>> 3] >>> (7 - (i & 7))) & 1) === 1;
+        i++;
+      }
+    }
+  }
+
+  // choose the mask with the lowest penalty
+  const maskFn = [
+    (x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0, (x) => x % 3 === 0, (x, y) => (x + y) % 3 === 0,
+    (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0, (x, y) => ((x * y) % 2) + ((x * y) % 3) === 0,
+    (x, y) => (((x * y) % 2) + ((x * y) % 3)) % 2 === 0, (x, y) => (((x + y) % 2) + ((x * y) % 3)) % 2 === 0,
+  ];
+  const applyMask = (m) => {
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++)
+      if (!fn[y][x] && maskFn[m](x, y)) mod[y][x] = !mod[y][x];
+  };
+  const penalty = () => {
+    let p = 0, dark = 0;
+    for (let a = 0; a < size; a++) {
+      let rr = 1, rc = 1;
+      for (let b = 1; b < size; b++) {
+        if (mod[a][b] === mod[a][b - 1]) { rr++; if (rr === 5) p += 3; else if (rr > 5) p++; } else rr = 1;
+        if (mod[b][a] === mod[b - 1][a]) { rc++; if (rc === 5) p += 3; else if (rc > 5) p++; } else rc = 1;
+      }
+    }
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      if (mod[y][x]) dark++;
+      if (x < size - 1 && y < size - 1 && mod[y][x] === mod[y][x + 1] && mod[y][x] === mod[y + 1][x] && mod[y][x] === mod[y + 1][x + 1]) p += 3;
+    }
+    const total = size * size;
+    p += (Math.ceil(Math.abs(dark * 20 - total * 10) / total) - 1) * 10;
+    return p;
+  };
+  let best = 0, bestP = Infinity;
+  for (let m = 0; m < 8; m++) {
+    applyMask(m); drawFormat(m);
+    const pen = penalty();
+    if (pen < bestP) { bestP = pen; best = m; }
+    applyMask(m);
+  }
+  applyMask(best); drawFormat(best);
+  return mod;
+}
+
+function qrSvgPath(mod) {
+  let d = "";
+  mod.forEach((row, y) => row.forEach((dark, x) => { if (dark) d += `M${x + 4} ${y + 4}h1v1h-1z`; }));
+  return d;
+}
+
 function RealQrCode({ value }) {
-  const src = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=0&data=${encodeURIComponent(value)}`;
-  return <img src={src} alt="QR Code เช็กอิน" style={styles.qrImg} />;
+  const mod = makeQrMatrix(value);
+  const n = mod.length + 8;
+  return (
+    <svg viewBox={`0 0 ${n} ${n}`} style={styles.qrImg} role="img" aria-label="QR Code เช็กอิน" shapeRendering="crispEdges">
+      <rect width={n} height={n} fill="#fff" />
+      <path d={qrSvgPath(mod)} fill="#000" />
+    </svg>
+  );
 }
 
 function BottomNav({ tab, setTab }) {
@@ -839,6 +1232,7 @@ const styles = {
     borderRadius: 28,
     overflow: "hidden",
     boxShadow: "0 20px 50px rgba(20,30,60,.25)",
+    position: "relative",
     display: "flex",
     flexDirection: "column",
   },
@@ -941,6 +1335,10 @@ const styles = {
   legendItem: { display: "inline-flex", alignItems: "center", gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 3, display: "inline-block" },
 
+  zoomBar: { display: "flex", alignItems: "center", gap: 8, marginBottom: 8 },
+  zoomHint: { flex: 1, fontSize: 12, color: muted, fontFamily: "'Noto Sans Thai', sans-serif" },
+  zoomBtn: { width: 36, height: 36, borderRadius: 10, border: `1px solid ${line}`, background: "#fff", color: primary, fontSize: 22, fontWeight: 700, cursor: "pointer", lineHeight: 1 },
+  mapScroll: { background: "#F4F6FB", border: `1px solid ${line}`, borderRadius: 16, padding: 0, overflow: "auto", height: 400, WebkitOverflowScrolling: "touch" },
   floorSvgWrap: { background: "#F4F6FB", border: `1px solid ${line}`, borderRadius: 16, padding: 8, marginBottom: 10 },
   floorSvg: { width: "100%", height: "auto", display: "block" },
 
@@ -1000,6 +1398,26 @@ const styles = {
   guideLinkLogin: {
     display: "block", textAlign: "center", textDecoration: "none", color: primary,
     fontSize: 13, fontWeight: 600, marginTop: 18, fontFamily: "'Noto Sans Thai', sans-serif",
+  },
+
+  welcomeOverlay: {
+    position: "absolute", inset: 0, zIndex: 50, background: "rgba(20,30,60,.55)",
+    display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+  },
+  welcomeCard: {
+    background: "#fff", borderRadius: 20, padding: "26px 22px 18px", width: "100%",
+    textAlign: "center", boxShadow: "0 16px 40px rgba(0,0,0,.3)", fontFamily: "'Noto Sans Thai', sans-serif",
+  },
+  welcomeIcon: { fontSize: 38, marginBottom: 6 },
+  welcomeTitle: { fontSize: 18, fontWeight: 700, color: ink, marginBottom: 8 },
+  welcomeText: { fontSize: 13.5, color: muted, lineHeight: 1.6, marginBottom: 18 },
+  welcomePrimary: {
+    display: "block", textDecoration: "none", background: primary, color: "#fff",
+    borderRadius: 12, padding: "13px 0", fontSize: 15, fontWeight: 600, marginBottom: 8,
+  },
+  welcomeSkip: {
+    border: "none", background: "transparent", color: muted, fontSize: 13.5, cursor: "pointer",
+    padding: "8px 0", fontFamily: "'Noto Sans Thai', sans-serif",
   },
 
   bottomNav: { display: "flex", borderTop: `1px solid ${line}`, background: "#fff", padding: "8px 0 10px" },
